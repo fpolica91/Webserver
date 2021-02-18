@@ -6,9 +6,58 @@
 //
 
 #include <iostream>
+#include "Poco/Net/HTTPServer.h"
+#include "Poco/Net/HTTPRequestHandler.h"
+#include "Poco/Net/HTTPRequestHandlerFactory.h"
+#include "Poco/Net/HTTPServerRequest.h"
+#include "Poco/Net/HTTPServerResponse.h"
+#include "Poco/Net/ServerSocket.h"
+#include "Poco/Util/ServerApplication.h"
 
-int main(int argc, const char * argv[]) {
-    // insert code here...
-    std::cout << "Hello, World!\n";
-    return 0;
-}
+using namespace Poco;
+using namespace Poco::Net;
+using namespace Poco::Util;
+using namespace std;
+
+class RequestHandler: public HTTPRequestHandler{
+    void handleRequest(HTTPServerRequest& request, HTTPServerResponse& response){
+        Application& app = Application::instance();
+        app.logger().information("Request from %s", request.clientAddress().toString());
+        response.setChunkedTransferEncoding(true);
+        response.setContentType("text/html");
+        response.send()
+            << "<html>"
+            << "<head><title>Hello</title></head>"
+            << "<body><h1>Hello from the POCO Web Server</h1> <p> This is a simple paragraph </p></body>"
+            << "</html>";
+    }
+  
+    
+};
+
+class RequestHandlerFactory : public HTTPRequestHandlerFactory {
+    HTTPRequestHandler* createRequestHandler(const HTTPServerRequest&)
+      {
+          return new RequestHandler;
+      }
+};
+
+class WebServerApp : public ServerApplication{
+    void initialize(Application& self){
+        loadConfiguration();
+        ServerApplication::initialize(self);
+    }
+    int main(const std::vector<std::string>&){
+        UInt16 port = static_cast<UInt16>(config().getUInt("port", 8080));
+        HTTPServer srv(new RequestHandlerFactory, port);
+        srv.start();
+        logger().information("HTTP Server started on port %hu.", port);
+        waitForTerminationRequest();
+        logger().information("Stopping HTTP Server...");
+        srv.stop();
+        return Application::EXIT_OK;
+    }
+};
+
+
+POCO_SERVER_MAIN(WebServerApp)
